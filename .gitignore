@@ -1,0 +1,22 @@
+# --- Python Setup ---
+# Ignore the virtual environment folder
+venv/
+env/
+.env
+
+# Ignore compiled python files (automatically generated)
+__pycache__/
+*.pyc
+
+# --- Project Specific ---
+# Ignore the flight log CSV files (we don't want to upload test logs)
+flight_log_*.csv
+
+# --- System & IDE Junk ---
+# Windows thumbnail cache
+Thumbs.db
+# Mac folder settings
+.DS_Store
+# VS Code / PyCharm settings (optional, but keeps repo clean)
+.vscode/
+.idea/
