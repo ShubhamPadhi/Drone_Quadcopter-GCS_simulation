@@ -5,20 +5,16 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 import math
-import csv  # <--- NEW IMPORT
-from datetime import datetime # <--- NEW IMPORT
-
-# --- CONFIGURATION ---
+import csv  
+from datetime import datetime
 UDP_IP = "127.0.0.1"
-UDP_PORT_RX = 9001  # Telemetry (Sim -> GCS)
-UDP_PORT_TX = 9000  # Commands (GCS -> Sim)
-
-# --- THEME COLORS ---
+UDP_PORT_RX = 9001
+UDP_PORT_TX = 9000  
 BG_COLOR = "#2e2e2e"
 FG_COLOR = "#ffffff"
 ACCENT_COLOR = "#007acc"
 PANEL_COLOR = "#3e3e3e"
-SUCCESS_COLOR = "#28a745" # Green
+SUCCESS_COLOR = "#28a745"
 WARNING_COLOR = "#ffc107"
 DANGER_COLOR = "#dc3545"
 
@@ -28,14 +24,9 @@ class ModernDroneGCS:
         self.root.title("AeroCommand GCS - Advanced Dashboard")
         self.root.geometry("900x650")
         self.root.configure(bg=BG_COLOR)
-        
-        # Data State
         self.telemetry = {"position": [0,0,0], "orientation": [0,0,0], "battery": 100, "mode": "DISCONNECTED"}
         self.running = True
-        self.altitude_history = [0] * 50  # Store last 50 altitude points for graph
-
-        # --- NEW: CSV LOGGING SETUP ---
-        # Creates a new file like "flight_log_2023-10-27_10-30-00.csv"
+        self.altitude_history = [0] * 50
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log_filename = f"flight_log_{timestamp}.csv"
         self.log_file = open(self.log_filename, mode='w', newline='')
@@ -43,64 +34,41 @@ class ModernDroneGCS:
         self.csv_writer.writerow(["Timestamp", "Mode", "Battery", "X", "Y", "Z", "Yaw"])
         print(f"Logging telemetry to: {self.log_filename}")
 
-        # --- NETWORK SETUP ---
         self.sock_rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock_rx.bind((UDP_IP, UDP_PORT_RX))
         self.sock_rx.setblocking(False)
         self.sock_tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # --- STYLING ---
         self.setup_styles()
 
-        # --- LAYOUT ---
         main_container = tk.Frame(root, bg=BG_COLOR)
         main_container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Top Bar: Status & Battery
         self.create_top_bar(main_container)
 
-        # Middle Area: Visualization & Controls
         middle_frame = tk.Frame(main_container, bg=BG_COLOR)
         middle_frame.pack(fill="both", expand=True, pady=10)
 
-        # Left Column: Visuals (Compass + Graph)
         self.create_visuals_panel(middle_frame)
 
-        # Right Column: Controls
         self.create_controls_panel(middle_frame)
-
-        # Bottom Bar: System Messages
         self.create_bottom_bar(main_container)
-
-        # --- THREADS ---
         self.thread = threading.Thread(target=self.listen_telemetry, daemon=True)
         self.thread.start()
-        
         self.update_gui()
 
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')
-        
-        # Frames
         style.configure("Card.TFrame", background=PANEL_COLOR, relief="flat")
-        
-        # Labels
         style.configure("TLabel", background=PANEL_COLOR, foreground=FG_COLOR, font=("Segoe UI", 10))
         style.configure("Header.TLabel", font=("Segoe UI", 14, "bold"), foreground=ACCENT_COLOR)
         style.configure("Value.TLabel", font=("Consolas", 12, "bold"), foreground="#00ff00")
-        
-        # Buttons
         style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=6, background=ACCENT_COLOR, foreground="white", borderwidth=0)
         style.map("TButton", background=[("active", "#005f9e")])
-        
         style.configure("Danger.TButton", background=DANGER_COLOR)
         style.map("Danger.TButton", background=[("active", "#a71d2a")])
-
-        # Entry
         style.configure("TEntry", fieldbackground="#505050", foreground="white", insertcolor="white")
-
-        # --- NEW: Green Battery Bar Style ---
         style.configure("Green.Horizontal.TProgressbar", 
                         troughcolor="#444444", 
                         background=SUCCESS_COLOR, 
@@ -112,25 +80,17 @@ class ModernDroneGCS:
     def create_top_bar(self, parent):
         frame = ttk.Frame(parent, style="Card.TFrame")
         frame.pack(fill="x", ipady=10)
-
-        # Mode Indicator
         self.lbl_mode = ttk.Label(frame, text="MODE: WAIT", font=("Segoe UI", 16, "bold"), foreground=WARNING_COLOR)
         self.lbl_mode.pack(side="left", padx=20)
-
-        # Battery Bar
         self.lbl_bat_text = ttk.Label(frame, text="BATTERY: 100%", font=("Segoe UI", 12, "bold"))
         self.lbl_bat_text.pack(side="right", padx=(10, 20))
-        
-        # --- APPLIED NEW STYLE HERE ---
         self.progress_bat = ttk.Progressbar(frame, orient="horizontal", length=200, mode="determinate", style="Green.Horizontal.TProgressbar")
         self.progress_bat.pack(side="right")
         self.progress_bat['value'] = 100
-
     def create_visuals_panel(self, parent):
         frame = tk.Frame(parent, bg=BG_COLOR)
         frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
-        # 1. 2D Map / Compass Canvas
         compass_frame = ttk.Frame(frame, style="Card.TFrame")
         compass_frame.pack(fill="both", expand=True, pady=(0, 10)) 
         ttk.Label(compass_frame, text="Drone Orientation (Top Down)", style="Header.TLabel").pack(pady=5)
@@ -139,7 +99,6 @@ class ModernDroneGCS:
         self.canvas_compass.pack(fill="both", expand=True, padx=10, pady=10)
         self.draw_compass_base()
 
-        # 2. Altitude Graph
         alt_frame = ttk.Frame(frame, style="Card.TFrame")
         alt_frame.pack(fill="both", expand=True)
         ttk.Label(alt_frame, text="Live Altitude (Z-Axis)", style="Header.TLabel").pack(pady=5)
@@ -151,19 +110,15 @@ class ModernDroneGCS:
         frame = tk.Frame(parent, bg=BG_COLOR, width=300)
         frame.pack(side="right", fill="y")
         
-        # Telemetry Text Data
         data_card = ttk.Frame(frame, style="Card.TFrame", padding=15)
         data_card.pack(fill="x", pady=(0, 10)) 
         ttk.Label(data_card, text="Telemetry Data", style="Header.TLabel").pack(anchor="w")
-        
         self.lbl_pos_x = ttk.Label(data_card, text="X: 0.00 m")
         self.lbl_pos_x.pack(anchor="w")
         self.lbl_pos_y = ttk.Label(data_card, text="Y: 0.00 m")
         self.lbl_pos_y.pack(anchor="w")
         self.lbl_pos_z = ttk.Label(data_card, text="Z: 0.00 m")
         self.lbl_pos_z.pack(anchor="w")
-
-        # Flight Modes
         mode_card = ttk.Frame(frame, style="Card.TFrame", padding=15)
         mode_card.pack(fill="x", pady=(0, 10))
         ttk.Label(mode_card, text="Quick Actions", style="Header.TLabel").pack(anchor="w", pady=(0, 5))
@@ -174,8 +129,6 @@ class ModernDroneGCS:
         ttk.Button(grid_frame, text="TAKEOFF", command=lambda: self.send_command("mode", "TAKEOFF")).pack(side="left", fill="x", expand=True, padx=2)
         ttk.Button(grid_frame, text="LAND", command=lambda: self.send_command("mode", "LAND")).pack(side="left", fill="x", expand=True, padx=2)
         ttk.Button(grid_frame, text="RTL", command=lambda: self.send_command("mode", "RTL")).pack(side="left", fill="x", expand=True, padx=2)
-
-        # Mission
         mission_card = ttk.Frame(frame, style="Card.TFrame", padding=15)
         mission_card.pack(fill="x", pady=(0, 10))
         ttk.Label(mission_card, text="Mission Planning", style="Header.TLabel").pack(anchor="w")
@@ -186,17 +139,14 @@ class ModernDroneGCS:
         self.entry_wp.pack(fill="x", pady=5)
         
         ttk.Button(mission_card, text="UPLOAD & FLY", command=self.upload_mission).pack(fill="x", pady=2)
-
-        # System
         sys_card = ttk.Frame(frame, style="Card.TFrame", padding=15)
         sys_card.pack(fill="x")
         ttk.Button(sys_card, text="EMERGENCY REBOOT", style="Danger.TButton", command=self.send_reboot).pack(fill="x")
-
     def create_bottom_bar(self, parent):
         self.lbl_status = tk.Label(parent, text="System Ready.", bg=BG_COLOR, fg="#888888", font=("Segoe UI", 9), anchor="w")
         self.lbl_status.pack(fill="x", pady=(5,0))
 
-    # --- DRAWING HELPERS ---
+
     def draw_compass_base(self):
         w = 300; h = 200
         cx = w/2; cy = h/2
@@ -205,12 +155,11 @@ class ModernDroneGCS:
         self.drone_arrow = self.canvas_compass.create_line(cx, cy, cx, cy-60, fill=ACCENT_COLOR, width=4, arrow=tk.LAST)
 
     def update_compass(self, yaw_rad):
-        # Update arrow rotation based on yaw
         w = self.canvas_compass.winfo_width()
         h = self.canvas_compass.winfo_height()
         cx = w/2; cy = h/2
         
-        # Calculate end point
+      
         length = 60
         end_x = cx + length * math.sin(yaw_rad)
         end_y = cy - length * math.cos(yaw_rad)
@@ -223,19 +172,18 @@ class ModernDroneGCS:
         w = c.winfo_width()
         h = c.winfo_height()
         
-        # Draw grid lines
+       
         c.create_line(0, h/2, w, h/2, fill="#333", dash=(2,4))
 
         if not w or not h: return
 
-        # Normalize data (Assume max height 5m for scaling)
+       
         max_h = 5.0
         step_x = w / len(self.altitude_history)
         
         points = []
         for i, alt in enumerate(self.altitude_history):
             x = i * step_x
-            # Invert Y (Canvas 0 is top)
             y = h - ((alt / max_h) * h)
             points.append(x)
             points.append(y)
@@ -243,7 +191,7 @@ class ModernDroneGCS:
         if len(points) >= 4:
             c.create_line(points, fill=SUCCESS_COLOR, width=2, smooth=True)
 
-    # --- LOGIC ---
+    
     def listen_telemetry(self):
         print(f"Listening on {UDP_IP}:{UDP_PORT_RX}")
         while self.running:
@@ -251,13 +199,10 @@ class ModernDroneGCS:
                 data, _ = self.sock_rx.recvfrom(2048)
                 self.telemetry = json.loads(data.decode())
                 
-                # Update history for graph
+                
                 pos = self.telemetry.get("position", [0,0,0])
                 self.altitude_history.append(pos[2])
                 self.altitude_history.pop(0)
-
-                # --- NEW: LOG TO CSV ---
-                # Writes: Time, Mode, Battery, X, Y, Z, Yaw
                 ori = self.telemetry.get("orientation", [0,0,0])
                 self.csv_writer.writerow([
                     datetime.now().strftime("%H:%M:%S"),
@@ -266,7 +211,7 @@ class ModernDroneGCS:
                     f"{pos[0]:.2f}", f"{pos[1]:.2f}", f"{pos[2]:.2f}",
                     f"{ori[2]:.2f}"
                 ])
-                self.log_file.flush() # Ensure data is saved immediately
+                self.log_file.flush()
                 
             except Exception:
                 pass
@@ -274,23 +219,17 @@ class ModernDroneGCS:
 
     def update_gui(self):
         t = self.telemetry
-        
-        # 1. Update Labels
         mode = t.get("mode", "N/A")
-        self.lbl_mode.config(text=f"MODE: {mode}", foreground=SUCCESS_COLOR if mode == "GUIDED" else WARNING_COLOR)
-        
+        self.lbl_mode.config(text=f"MODE: {mode}", foreground=SUCCESS_COLOR if mode == "GUIDED" else WARNING_COLOR)  
         bat = t.get("battery", 0)
         self.lbl_bat_text.config(text=f"BATTERY: {bat:.1f}%")
         self.progress_bat['value'] = bat
-        
         pos = t.get("position", [0,0,0])
         self.lbl_pos_x.config(text=f"X: {pos[0]:.2f} m")
         self.lbl_pos_y.config(text=f"Y: {pos[1]:.2f} m")
         self.lbl_pos_z.config(text=f"Z: {pos[2]:.2f} m")
-        
-        # 2. Update Visuals
         ori = t.get("orientation", [0,0,0])
-        yaw = ori[2] # Yaw is usually index 2 (Roll, Pitch, Yaw)
+        yaw = ori[2]
         self.update_compass(yaw)
         self.update_graph()
 
